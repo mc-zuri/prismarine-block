@@ -302,17 +302,36 @@ describe('Dig time as the vanilla client takes it', () => {
     return { registry, block: Block.fromStateId(registry.blocksByName[name].defaultState, 0) }
   }
 
-  it('mining fatigue III is 0.3^3 from 26.3 (stone by hand: 5556 ticks), 0.0027 before (1.21.11: 55556)', () => {
-    for (const [version, ticks] of [['26.3', 5556], ['1.21.11', 55556]]) {
+  for (const version of ['1.16.5', '1.21.11', '26.3']) {
+    it(`stone by hand: 151 ticks, the float progress 1/150 short of 1 after 150 (${version})`, () => {
+      const { block: stone } = block(version, 'stone')
+      expect(stone.digTime(null, false, false, false)).toBe(151 * 50)
+    })
+  }
+
+  it('blue ice with an iron pickaxe: 15 ticks (1.21.11)', () => {
+    const { registry, block: ice } = block('1.21.11', 'blue_ice')
+    expect(ice.digTime(registry.itemsByName.iron_pickaxe.id, false, false, false)).toBe(15 * 50)
+  })
+
+  it('mining fatigue III is 0.3^3 from 26.3 (stone by hand: 5556 ticks), 0.0027 before (1.21.11: 55554)', () => {
+    for (const [version, ticks] of [['26.3', 5556], ['1.21.11', 55554]]) {
       const { registry, block: stone } = block(version, 'stone')
       const effects = { [registry.effectsByName.MiningFatigue.id]: { amplifier: 2 } }
       expect(stone.digTime(null, false, false, false, [], effects)).toBe(ticks * 50)
     }
   })
+
   it('a sword breaks bamboo at once (BambooStalkBlock before 1.21.5, the sword_instantly_mines rule after)', () => {
     for (const version of ['1.16.5', '1.20.4', '1.21.4', '1.21.11']) {
       const { registry, block: bamboo } = block(version, 'bamboo')
       expect(bamboo.digTime(registry.itemsByName.iron_sword.id, false, false, false)).toBe(0)
     }
+  })
+
+  it('a float sum that grows slower than 1 / progress (reinforced deepslate under fatigue IV: 2081324, not 2037037)', () => {
+    const { registry, block: rd } = block('1.19.4', 'reinforced_deepslate')
+    const effects = { [registry.effectsByName.MiningFatigue.id]: { amplifier: 3 } }
+    expect(rd.digTime(null, false, false, false, [], effects)).toBe(2081324 * 50)
   })
 })

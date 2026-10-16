@@ -107,6 +107,20 @@ function provider (registry, { Biome, version }) {
     }
   }
 
+  // The ticks the client holds attack until a block breaks: it adds the (float) progress each tick, from the tick it
+  // starts, until the sum reaches 1 (MultiPlayerGameMode.continueDestroyBlock). Infinity when the sum stops growing.
+  function breakTicks (delta) {
+    let sum = 0
+    let ticks = 0
+    while (sum < 1) {
+      const next = Math.fround(sum + delta)
+      if (next === sum) return Infinity
+      sum = next
+      ticks++
+    }
+    return ticks
+  }
+
   // BambooStalkBlock and BambooSaplingBlock.getDestroyProgress before 1.21.5 (then every sword's tool rule
   // sword_instantly_mines, in materials): held in the main hand, any sword breaks them at once
   const swordBreaksAtOnce = registry.version.type === 'pc' && registry.version['<']('1.21.5')
@@ -330,11 +344,11 @@ function provider (registry, { Biome, version }) {
       return heldItemType && this.harvestTools && this.harvestTools[heldItemType]
     }
 
-    // http://minecraft.gamepedia.com/Breaking#Calculation
-    // for more concrete information, look up following Minecraft methods (assuming yarn mappings):
-    // AbstractBlock#calcBlockBreakingDelta, PlayerEntity#getBlockBreakingSpeed, PlayerEntity#canHarvest
+    // Vanilla's Player.getDestroySpeed and BlockBehaviour.getDestroyProgress, in floats as they are, and the ticks the
+    // client takes adding that progress up (breakTicks): the time in ms, 0 when it breaks at once, Infinity never
     digTime (heldItemType, creative, inWater, notOnGround, enchantments = [], effects = {}) {
       if (creative) return 0
+      const f = Math.fround
 
       const heldItem = heldItemType != null ? registry.items[heldItemType] : null
       if (swordBreaksAtOnce.has(this.name) && heldItem?.name.endsWith('_sword')) return 0
@@ -342,74 +356,46 @@ function provider (registry, { Biome, version }) {
       const materialToolMultipliers = registry.materials[this.material]
       const isBestTool = heldItemType && materialToolMultipliers && materialToolMultipliers[heldItemType]
 
-      // Compute breaking speed multiplier
-      let blockBreakingSpeed = 1
+      // The held item's speed on this block
+      let speed = isBestTool ? f(materialToolMultipliers[heldItemType]) : 1
 
-      if (isBestTool) {
-        blockBreakingSpeed = materialToolMultipliers[heldItemType]
-      }
-
-      // Efficiency is applied if tools speed multiplier is more than 1.0
+      // Efficiency (from 1.21 the mining_efficiency attribute it gives) when the item is faster than a hand
       const efficiencyLevel = getEnchantmentLevel('efficiency', enchantments)
-      if (efficiencyLevel > 0 && blockBreakingSpeed > 1.0) {
-        blockBreakingSpeed += efficiencyLevel * efficiencyLevel + 1
+      if (efficiencyLevel > 0 && speed > 1.0) {
+        speed = f(speed + f(efficiencyLevel * efficiencyLevel + 1))
       }
 
-      // Haste is always considered when effect is present, and when both
-      // Conduit Power and Haste are present, highest level is considered
+      // Haste or Conduit Power, the higher
       const hasteLevel = Math.max(
         getEffectLevel('Haste', effects),
         getEffectLevel('ConduitPower', effects))
-
       if (hasteLevel > 0) {
-        blockBreakingSpeed *= 1 + (0.2 * hasteLevel)
+        speed = f(speed * f(1 + f(hasteLevel * f(0.2))))
       }
 
-      // Mining fatigue is applied afterwards, but multiplier only decreases up to level 4
       const miningFatigueLevel = getEffectLevel('MiningFatigue', effects)
-
       if (miningFatigueLevel > 0) {
-        blockBreakingSpeed *= getMiningFatigueMultiplier(miningFatigueLevel)
+        speed = f(speed * getMiningFatigueMultiplier(miningFatigueLevel))
       }
 
-      // Apply 5x breaking speed de-buff if we are submerged in water and do not have aqua affinity
-      const aquaAffinityLevel = getEnchantmentLevel('aqua_affinity', enchantments)
-
-      if (inWater && aquaAffinityLevel === 0) {
-        blockBreakingSpeed /= 5.0
+      // Under water without Aqua Affinity: / 5 (from 1.21 x the submerged_mining_speed attribute, 0.2)
+      if (inWater && getEnchantmentLevel('aqua_affinity', enchantments) === 0) {
+        speed = registry.version.type === 'pc' && registry.version['>=']('1.21') ? f(speed * f(0.2)) : f(speed / 5)
       }
 
-      // We always get 5x breaking speed de-buff if we are not on the ground
+      // Off the ground: / 5
       if (notOnGround) {
-        blockBreakingSpeed /= 5.0
+        speed = f(speed / 5)
       }
 
-      // Compute block breaking delta (breaking progress applied in a single tick)
+      // getDestroyProgress: speed / hardness / (30 with the correct tool for drops, else 100)
       const blockHardness = this.hardness
-      const matchingToolMultiplier = this.canHarvest(heldItemType) ? 30.0 : 100.0
-
-      let blockBreakingDelta = blockBreakingSpeed / blockHardness / matchingToolMultiplier
-
-      // Delta will always be zero if block has -1.0 durability
-      if (blockHardness === -1.0) {
-        blockBreakingDelta = 0.0
-      }
-
-      // We will never be capable of breaking block if delta is zero, so abort now and return infinity
-      if (blockBreakingDelta === 0.0) {
-        return Infinity
-      }
-
-      // If breaking delta is more than 1.0 per tick, the block is broken instantly, so return 0
-      if (blockBreakingDelta >= 1.0) {
-        return 0
-      }
-
-      // Determine how many ticks breaking will take, then convert to millis and return result
-      // We round ticks up because if progress is below 1.0, it will be finished next tick
-
-      const ticksToBreakBlock = Math.ceil(1.0 / blockBreakingDelta)
-      return ticksToBreakBlock * 50
+      if (blockHardness === -1.0) return Infinity
+      const matchingToolMultiplier = this.canHarvest(heldItemType) ? 30 : 100
+      const blockBreakingDelta = f(f(speed / f(blockHardness)) / matchingToolMultiplier)
+      if (blockBreakingDelta === 0) return Infinity
+      if (blockBreakingDelta >= 1) return 0
+      return breakTicks(blockBreakingDelta) * 50
     }
   }
 
