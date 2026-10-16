@@ -107,6 +107,12 @@ function provider (registry, { Biome, version }) {
     }
   }
 
+  // BambooStalkBlock and BambooSaplingBlock.getDestroyProgress before 1.21.5 (then every sword's tool rule
+  // sword_instantly_mines, in materials): held in the main hand, any sword breaks them at once
+  const swordBreaksAtOnce = registry.version.type === 'pc' && registry.version['<']('1.21.5')
+    ? new Set(['bamboo', 'bamboo_sapling'])
+    : new Set()
+
   return class Block {
     constructor (type, biomeId, metadata, stateId) {
       this.type = type
@@ -329,6 +335,9 @@ function provider (registry, { Biome, version }) {
     // AbstractBlock#calcBlockBreakingDelta, PlayerEntity#getBlockBreakingSpeed, PlayerEntity#canHarvest
     digTime (heldItemType, creative, inWater, notOnGround, enchantments = [], effects = {}) {
       if (creative) return 0
+
+      const heldItem = heldItemType != null ? registry.items[heldItemType] : null
+      if (swordBreaksAtOnce.has(this.name) && heldItem?.name.endsWith('_sword')) return 0
 
       const materialToolMultipliers = registry.materials[this.material]
       const isBestTool = heldItemType && materialToolMultipliers && materialToolMultipliers[heldItemType]

@@ -309,4 +309,10 @@ describe('Dig time as the vanilla client takes it', () => {
       expect(stone.digTime(null, false, false, false, [], effects)).toBe(ticks * 50)
     }
   })
+  it('a sword breaks bamboo at once (BambooStalkBlock before 1.21.5, the sword_instantly_mines rule after)', () => {
+    for (const version of ['1.16.5', '1.20.4', '1.21.4', '1.21.11']) {
+      const { registry, block: bamboo } = block(version, 'bamboo')
+      expect(bamboo.digTime(registry.itemsByName.iron_sword.id, false, false, false)).toBe(0)
+    }
+  })
 })
