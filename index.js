@@ -95,13 +95,15 @@ function provider (registry, { Biome, version }) {
     return 0
   }
 
+  // Player.getDestroySpeed: 0.3F, 0.09F, 0.0027F, then 8.1E-4F; from 26.3 (float) Math.pow(0.3, level)
   function getMiningFatigueMultiplier (effectLevel) {
+    if (effectLevel === 0) return 1.0
+    if (registry.version['>=']('26.3')) return Math.fround(Math.pow(0.3, effectLevel))
     switch (effectLevel) {
-      case 0: return 1.0
-      case 1: return 0.3
-      case 2: return 0.09
-      case 3: return 0.0027
-      default: return 8.1E-4
+      case 1: return Math.fround(0.3)
+      case 2: return Math.fround(0.09)
+      case 3: return Math.fround(0.0027)
+      default: return Math.fround(8.1E-4)
     }
   }
 

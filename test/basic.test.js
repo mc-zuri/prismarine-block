@@ -292,3 +292,21 @@ describe('hashed-runtime metadata (Bedrock 1.19.80+)', () => {
     expect(new Block(enumBlock.id, 0, hashes.length).stateId).toBe(hashes[hashes.length - 1])
   })
 })
+
+// The vanilla jar's break progress (E:\gen packages/minecraft-data-oracle: Player.getDestroySpeed /
+// getDestroyProgress of a real ServerPlayer) added up tick by tick as the client does
+describe('Dig time as the vanilla client takes it', () => {
+  function block (version, name) {
+    const registry = require('prismarine-registry')(version)
+    const Block = require('prismarine-block')(registry)
+    return { registry, block: Block.fromStateId(registry.blocksByName[name].defaultState, 0) }
+  }
+
+  it('mining fatigue III is 0.3^3 from 26.3 (stone by hand: 5556 ticks), 0.0027 before (1.21.11: 55556)', () => {
+    for (const [version, ticks] of [['26.3', 5556], ['1.21.11', 55556]]) {
+      const { registry, block: stone } = block(version, 'stone')
+      const effects = { [registry.effectsByName.MiningFatigue.id]: { amplifier: 2 } }
+      expect(stone.digTime(null, false, false, false, [], effects)).toBe(ticks * 50)
+    }
+  })
+})
