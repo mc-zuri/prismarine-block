@@ -45,6 +45,8 @@ function provider (registry, { Biome, version }) {
           }
         }
       } else { // pre 1.13
+        // the shape of each data value, whether or not the block has a variation for it (a trapdoor's, a ladder's)
+        if (shapesId instanceof Array) block.stateShapes = shapesId.map(id => shapes.shapes[id])
         if ('variations' in block) {
           for (const i in block.variations) {
             const metadata = block.variations[i].metadata
@@ -174,12 +176,13 @@ function provider (registry, { Biome, version }) {
             this.shapes = blockEnum.stateShapes[0]
             this.missingStateShape = true
           }
-        } else if (blockEnum.variations) {
+        }
+        if (blockEnum.variations) {
           const variations = blockEnum.variations
           for (const i in variations) {
             if (variations[i].metadata === metadata) {
               this.displayName = variations[i].displayName
-              this.shapes = variations[i].shapes
+              if (!blockEnum.stateShapes) this.shapes = variations[i].shapes
             }
           }
         }
