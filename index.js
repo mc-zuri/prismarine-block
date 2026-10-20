@@ -24,7 +24,26 @@ const legacyPcBlocksByIdmeta = Object.entries(mcData.legacy.pc.blocks).reduce((o
 function loader (registryOrVersion) {
   const registry = typeof registryOrVersion === 'string' ? require('prismarine-registry')(registryOrVersion) : registryOrVersion
   const version = registry.version
-  return provider(registry, { Biome: require('prismarine-biome')(version), version })
+  return provider(registry, { Biome: biomeLookup(registry), version })
+}
+
+// prismarine-biome's empty biome, for an id the registry has no biome for
+const emptyBiome = {
+  color: 0,
+  height: null,
+  name: '',
+  rainfall: 0,
+  temperature: 0
+}
+
+// A block's biome by its id in the registry's biomes as they are when the block is made: the server's own biome
+// registry (its dimension codec, from 1.20.2 its registry_data) replaces the registry's biomes after the blocks are
+// loaded, and the chunk data's biome ids are its ids. (prismarine-biome keeps the biomes it was loaded with, and was
+// given the version, not the registry: every biome read as the empty one.)
+function biomeLookup (registry) {
+  return function Biome (id) {
+    return registry.biomes?.[id] || { ...emptyBiome, id }
+  }
 }
 
 function provider (registry, { Biome, version }) {
