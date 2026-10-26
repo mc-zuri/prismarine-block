@@ -292,3 +292,16 @@ describe('hashed-runtime metadata (Bedrock 1.19.80+)', () => {
     expect(new Block(enumBlock.id, 0, hashes.length).stateId).toBe(hashes[hashes.length - 1])
   })
 })
+
+describe('legacy data values (Bedrock 0.14 - 1.0)', () => {
+  // minecraft-data has no block states before 1.16.210: a block's properties are those its legacy table gives the id
+  // and data value
+  for (const version of ['bedrock_0.14', 'bedrock_1.0']) {
+    it(`gives a block of ${version} the properties of its id and data value`, () => {
+      const Block = require('prismarine-block')(version)
+      expect(Block.fromStateId((35 << 4) | 14, 0).getProperties()).toEqual({ color: 'red' })
+      expect(new Block(17, 0, 2).getProperties()).toEqual({ old_log_type: 'birch', pillar_axis: 'y' })
+      expect(Block.fromStateId(1 << 4, 0).getProperties()).toEqual({ stone_type: 'stone' })
+    })
+  }
+})

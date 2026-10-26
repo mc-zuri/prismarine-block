@@ -9,7 +9,7 @@ const legacyPcBlocksByName = Object.entries(mcData.legacy.pc.blocks).reduce((obj
   ;(obj[n] = obj[n] || {})[s] = idmeta
   return obj // array of { [name]: { [states string]: string(id:meta) } }
 }, {})
-const legacyPcBlocksByIdmeta = Object.entries(mcData.legacy.pc.blocks).reduce((obj, [idmeta, name]) => {
+const propertiesByIdmeta = blocks => Object.entries(blocks).reduce((obj, [idmeta, name]) => {
   const s = name.split('[')[1]?.replace(']', '')
   obj[idmeta] = s
     ? Object.fromEntries(s.split(',').map(s => {
@@ -20,6 +20,8 @@ const legacyPcBlocksByIdmeta = Object.entries(mcData.legacy.pc.blocks).reduce((o
     : {}
   return obj // array of { '255:0': { mode: 'save' }, }
 }, {})
+const legacyPcBlocksByIdmeta = propertiesByIdmeta(mcData.legacy.pc.blocks)
+const legacyBedrockBlocksByIdmeta = propertiesByIdmeta(mcData.legacy.bedrock?.blocks ?? {})
 
 function loader (registryOrVersion) {
   const registry = typeof registryOrVersion === 'string' ? require('prismarine-registry')(registryOrVersion) : registryOrVersion
@@ -207,6 +209,11 @@ function provider (registry, { Biome, version }) {
         const states = (registry.blockStatesByStateId?.[this.stateId] || registry.blockStates?.[this.stateId])?.states || {}
         for (const state in states) {
           this._properties[state] = states[state].value
+        }
+        // Before 1.16.210 minecraft-data has no block states: a block is its id and data value, and its legacy table names
+        // the block state each is
+        if (!registry.blockStates) {
+          Object.assign(this._properties, legacyBedrockBlocksByIdmeta[this.type + ':' + this.metadata])
         }
       } else {
         throw new Error('Unknown registry type: ' + version.type)
